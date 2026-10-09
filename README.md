@@ -18,4 +18,4 @@ script generator.
 Submitted for school use. No ongoing maintenance is planned.
 
 ## Attribution
-Built for a school AI club submission by [your preferred credit].
+Built for a school AI club submission by AINOVA - Group-6.
