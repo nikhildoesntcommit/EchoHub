@@ -1,10 +1,11 @@
 /* EchoHub service worker — offline shell, cached covers, and saved episodes
    served with byte-range support so seeking works with no connection. */
 
-const VERSION = '2.1.0';
+const VERSION = '2.2.0';
 const SHELL = `echohub-shell-${VERSION}`;
 const FONTS = 'echohub-fonts-v1';
 const AUDIO = 'echohub-audio-v1'; // managed by the page (offline.js); never purged on update
+const AI = 'echohub-ai-v1';       // pinned AI runtime from the CDN, so the Studio writer works offline
 
 const COVERS = [
   'bhakra_nangal_dam', 'black_holes_explained', 'causes_of_world_war_i',
@@ -24,6 +25,8 @@ const PRECACHE = [
   'assets/js/player.js',
   'assets/js/tuner.js',
   'assets/js/studio.js',
+  'assets/js/writer.js',
+  'assets/js/writer-worker.js',
   'assets/js/views.js',
   'assets/js/components.js',
   'assets/js/nowplaying.js',
@@ -109,6 +112,19 @@ self.addEventListener('fetch', (event) => {
   // Fonts
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
     event.respondWith(staleWhileRevalidate(request, FONTS));
+    return;
+  }
+
+  // AI writer runtime: versioned, immutable CDN files, so the cached copy is always right.
+  if (url.hostname === 'cdn.jsdelivr.net' && /\/npm\/(@huggingface\/transformers|onnxruntime-web)@/.test(url.pathname)) {
+    event.respondWith((async () => {
+      const cache = await caches.open(AI);
+      const hit = await cache.match(request);
+      if (hit) return hit;
+      const res = await fetch(request);
+      if (res.ok) cache.put(request, res.clone());
+      return res;
+    })());
     return;
   }
 

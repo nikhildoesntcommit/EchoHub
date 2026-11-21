@@ -99,6 +99,30 @@ export const HOSTS = [
   { name: 'Kit', role: 'Co-host' }
 ];
 
+export const estimateSeconds = (segments) => Math.max(60, Math.round((segments.reduce((n, sg) => n + words(sg.text).length, 0) / 150) * 60));
+
+// Draft metadata shared by both writers: title, band theme, keywords and the
+// closest matching station on the dial. Segments are filled in by the writer.
+export function draftMeta(rawTopic, engine = 'template') {
+  const raw = clean(rawTopic);
+  const keys = keywordsOf(raw);
+  const ref = findReference(raw, keys);
+  const themeId = detectTheme(raw, ref);
+  return {
+    id: `draft-${Date.now()}`,
+    topic: raw,
+    title: raw.replace(/^\w/, (c) => c.toUpperCase()),
+    theme: themeId,
+    themeLabel: (BLUEPRINTS[themeId] || BLUEPRINTS.general).label,
+    seconds: 60,
+    keywords: keys,
+    ref: ref?.slug || null,
+    engine,
+    segments: [],
+    createdAt: Date.now()
+  };
+}
+
 export function buildDraft(rawTopic) {
   const raw = clean(rawTopic);
   // Lower-case the first letter for mid-sentence use, unless it looks like an acronym or name ("AI", "GPS").
@@ -150,19 +174,7 @@ export function buildDraft(rawTopic) {
     [0, pick(['That is our take for today. Thanks for tuning in to Echo Studio.', 'That is the quick take. Stay curious, and we will catch you on the next frequency.', 'That is all for this one. Keep the dial moving.'], 11)]
   ].map(([voice, text]) => ({ voice, speaker: HOSTS[voice].name, text }));
 
-  const wordCount = segments.reduce((n, s) => n + words(s.text).length, 0);
-  return {
-    id: `draft-${Date.now()}`,
-    topic: raw,
-    title: raw.replace(/^\w/, (c) => c.toUpperCase()),
-    theme: themeId,
-    themeLabel: bp.label,
-    seconds: Math.max(60, Math.round((wordCount / 150) * 60)),
-    keywords: keys,
-    ref: ref?.slug || null,
-    segments,
-    createdAt: Date.now()
-  };
+  return { ...draftMeta(raw), segments, seconds: estimateSeconds(segments) };
 }
 
 export const SUGGESTIONS = ['How volcanoes work', 'The history of the printing press', 'Why the sky is blue', 'How GPS knows where you are', 'The Silk Road', 'What makes a rainforest'];
@@ -202,10 +214,14 @@ export function defaultVoicePair(voices) {
 
 // Speaks one segment at a time so the UI can follow along and pause/resume
 // reliably (Chrome's native pause() is unreliable for long queues).
+// While a script is still being written (draft.writing), the speaker waits at
+// the end of the queue and carries on as soon as the next line arrives.
 export function createSpeaker({ onSegment, onState }) {
   let segs = [];
+  let draft = null;
   let idx = 0;
   let playing = false;
+  let waiting = false;
   let voices = [null, null];
   let rate = 1;
   let token = 0;
@@ -214,6 +230,8 @@ export function createSpeaker({ onSegment, onState }) {
     const my = ++token;
     speechSynthesis.cancel();
     idx = i;
+    waiting = false;
+    if (idx >= segs.length && draft?.writing) { waiting = true; onSegment?.(idx); return; }
     if (idx >= segs.length) { playing = false; onSegment?.(-1); onState?.('ended'); return; }
     const seg = segs[idx];
     const u = new SpeechSynthesisUtterance(seg.text);
@@ -230,13 +248,16 @@ export function createSpeaker({ onSegment, onState }) {
   return {
     get playing() { return playing; },
     get index() { return idx; },
-    load(draft) { this.stop(); segs = draft.segments; idx = 0; },
+    get rate() { return rate; },
+    load(d) { this.stop(); draft = d; segs = d.segments; idx = 0; },
+    // Call when the draft gains a segment or finishes writing.
+    nudge() { if (playing && waiting) speakFrom(idx); },
     setVoices(pair) { voices = pair; },
     setRate(r) { rate = r; },
     play(from = idx) { if (!segs.length) return; playing = true; onState?.('playing'); speakFrom(from >= segs.length ? 0 : from); },
-    pause() { playing = false; token++; speechSynthesis.cancel(); onState?.('paused'); },
+    pause() { playing = false; waiting = false; token++; speechSynthesis.cancel(); onState?.('paused'); },
     toggle() { return playing ? this.pause() : this.play(); },
-    stop() { playing = false; token++; if (speechSupported()) speechSynthesis.cancel(); idx = 0; onSegment?.(-1); onState?.('stopped'); },
+    stop() { playing = false; waiting = false; token++; if (speechSupported()) speechSynthesis.cancel(); idx = 0; onSegment?.(-1); onState?.('stopped'); },
     jump(i) { playing = true; onState?.('playing'); speakFrom(i); }
   };
 }

@@ -1,4 +1,4 @@
-// EchoHub — app bootstrap: routing, actions, keyboard, theme, offline, install.
+// EchoHub — app bootstrap: routing, actions, keyboard, theme, offline.
 
 import { BANDS, EPISODES } from './catalog.js';
 import { store, toggleKept } from './store.js';
@@ -15,7 +15,7 @@ import {
 } from './nowplaying.js';
 import {
   openSheet, closeSheet, sheetOpen, openSettings, openQueue, refreshQueueSheet, openSleep, openShortcuts,
-  openUpload, setInstallPrompt, getInstallPrompt
+  openUpload
 } from './sheets.js';
 
 const main = $('#main');
@@ -164,15 +164,6 @@ const ACTIONS = {
   shortcuts: () => openShortcuts(),
   upload: () => openUpload(refreshTapes),
   'close-sheet': () => closeSheet(),
-  install: async () => {
-    const p = getInstallPrompt();
-    if (!p) { openSettings(); return; }
-    p.prompt();
-    const { outcome } = await p.userChoice;
-    if (outcome === 'accepted') toast('EchoHub installed');
-    setInstallPrompt(null);
-    $$('[data-action="install"]').forEach((b) => { b.hidden = true; });
-  },
   'delete-tape': async (el) => {
     const ep = resolveEp(el.dataset.slug);
     if (!ep || !confirm(`Delete “${ep.title}” from this device?`)) return;
@@ -305,14 +296,7 @@ function netStatus() {
 window.addEventListener('online', () => { netStatus(); toast('Back on air'); });
 window.addEventListener('offline', () => { netStatus(); toast('You’re offline — saved stations still play'); });
 
-// ---------------------------------------------------------------- Install & service worker
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  setInstallPrompt(e);
-  $$('[data-action="install"]').forEach((b) => { b.hidden = false; });
-});
-window.addEventListener('appinstalled', () => { setInstallPrompt(null); $$('[data-action="install"]').forEach((b) => { b.hidden = true; }); });
-
+// ---------------------------------------------------------------- Service worker
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', async () => {
     try {

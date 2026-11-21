@@ -250,7 +250,6 @@ kbd {
   display: flex; justify-content: space-between; align-items: center;
 }
 .rail__btn:hover { color: var(--ink); background: var(--surface); }
-.rail__btn[data-action="install"] { color: var(--signal); font-weight: 650; }
 .rail__btn--mobile { display: none; }
 .rail__status { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ink-3); padding: 12px 12px 0; text-transform: uppercase; letter-spacing: 0.08em; }
 .rail__status i { width: 7px; height: 7px; border-radius: 50%; background: var(--band-geo); box-shadow: 0 0 0 3px color-mix(in srgb, var(--band-geo) 25%, transparent); }
@@ -689,6 +688,27 @@ kbd {
 .prompt input { flex: 1; min-width: 0; height: 54px; border: 0; outline: none; background: none; font-size: 20px; font-weight: 560; letter-spacing: -0.02em; }
 .prompt input::placeholder { color: var(--ink-3); }
 .prompt .btn { height: 52px; border-radius: 18px; }
+.prompt .btn.is-writing { background: var(--surface-3); color: var(--ink); }
+
+/* AI writer panel */
+.engine {
+  display: grid; gap: 12px; margin-top: 22px; padding: 16px 18px;
+  max-width: 760px; border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--line);
+}
+.seg--engine { justify-self: start; }
+.seg.seg--engine span { display: inline-flex; align-items: center; gap: 6px; }
+.seg--engine input:checked + span .ico { color: var(--signal); }
+.seg--engine input:disabled + span { opacity: 0.45; }
+.engine__body { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.engine__note { flex: 1 1 320px; font-size: 14px; line-height: 1.55; color: var(--ink-2); }
+.engine__note b { color: var(--ink); font-weight: 640; }
+.engine__note--err { color: var(--danger); }
+.engine__ok { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--band-geo); box-shadow: 0 0 0 3px color-mix(in srgb, var(--band-geo) 25%, transparent); vertical-align: 1px; }
+.engine__load { flex: 1; display: grid; gap: 8px; }
+.engine__load .mono { font-size: 12px; color: var(--ink-2); letter-spacing: 0.02em; }
+.meterbar { height: 8px; border-radius: 999px; background: var(--bg-2); border: 1px solid var(--line-2); overflow: hidden; }
+.meterbar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--signal), var(--signal-2)); box-shadow: 0 0 12px color-mix(in srgb, var(--signal) 45%, transparent); transition: width 0.3s var(--ease); }
 
 .onair {
   margin-top: 34px; padding: 26px;
@@ -728,7 +748,7 @@ kbd {
 .host[data-host="1"] .host__av i { border-color: var(--c); }
 .host.is-speaking .host__av i { animation: echo 1.6s var(--ease) infinite; }
 .host.is-speaking .host__av i + i { animation-delay: 0.8s; }
-.prompter { display: grid; gap: 4px; margin-top: 16px; max-height: 440px; overflow-y: auto; padding-right: 6px; scrollbar-width: thin; }
+.prompter { position: relative; display: grid; gap: 4px; margin-top: 16px; max-height: 440px; overflow-y: auto; padding-right: 6px; scrollbar-width: thin; }
 .prompter button {
   display: grid; grid-template-columns: 58px 1fr; gap: 14px; text-align: left; width: 100%;
   padding: 12px 14px; border-radius: 14px;
@@ -744,6 +764,13 @@ kbd {
 .prompter li.is-live[data-voice="0"] button { border-left-color: var(--signal); }
 .prompter li.is-live[data-voice="1"] button { border-left-color: var(--c); }
 .onair:not(.is-live) .prompter button { color: var(--ink-2); }
+.prompter .is-typing > div {
+  display: grid; grid-template-columns: 58px 1fr; gap: 14px; padding: 12px 14px;
+  color: var(--ink-2); font-size: 16px; line-height: 1.55; border-left: 3px solid transparent;
+}
+.prompter .is-typing span::after { content: ""; display: inline-block; width: 0.55em; height: 1.05em; margin-left: 2px; vertical-align: -0.15em; background: var(--signal); animation: blink 1s steps(2) infinite; }
+.onair.is-writing .onair__light { color: var(--lcd); }
+.onair.is-writing .onair__light i { background: var(--lcd); box-shadow: 0 0 10px var(--lcd); animation: blink 0.8s steps(2) infinite; }
 .onair__ref {
   display: flex; align-items: center; gap: 14px; margin-top: 18px; padding: 10px 14px 10px 10px;
   border-radius: 16px; background: var(--surface-2); border: 1px solid var(--line);

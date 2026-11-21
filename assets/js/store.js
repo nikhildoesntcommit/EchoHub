@@ -17,7 +17,9 @@ const DEFAULTS = {
     rate: 1,
     autoplay: true,
     skipBack: 15,
-    skipFwd: 30
+    skipFwd: 30,
+    studioEngine: 'ai', // ai | template
+    aiWriter: false     // the listener has downloaded the on-device model
   },
   lastStation: null,
   onboarded: false

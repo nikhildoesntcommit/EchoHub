@@ -5,7 +5,8 @@ import { store, getStats, isKept } from './store.js';
 import { isSaved } from './offline.js';
 import { player } from './player.js';
 import { createTuner } from './tuner.js';
-import { buildDraft, SUGGESTIONS, createSpeaker, speechSupported, voicesReady, defaultVoicePair, draftToText, HOSTS } from './studio.js';
+import { buildDraft, draftMeta, estimateSeconds, SUGGESTIONS, createSpeaker, speechSupported, voicesReady, defaultVoicePair, draftToText, HOSTS } from './studio.js';
+import { writer, MODEL, aiSupported, modelCached, buildMessages, GEN_OPTIONS, MAX_TURNS, createScriptParser, finishScript } from './writer.js';
 import { esc, icon, fmtLength, fmtFreq, fmtHours, fmtClock, toast, $, $$ } from './ui.js';
 import {
   card, row, coverHtml, playBtn, keepBtn, offlineBtn, hueOf, bandLabel, freqLabel, statusText,
@@ -325,6 +326,37 @@ let speaker = null;
 
 export function stopStudio() { speaker?.stop(); }
 
+const fmtMB = (b) => `${Math.round(b / 1e6)} MB`;
+
+function engineHtml(ws, engine) {
+  const supported = aiSupported();
+  const seg = `<div class="seg seg--engine" role="radiogroup" aria-label="Script writer">
+      <label><input type="radio" name="engine" value="ai" ${engine === 'ai' ? 'checked' : ''} ${supported ? '' : 'disabled'} /><span>${icon('sparkle', 14)} AI writer</span></label>
+      <label><input type="radio" name="engine" value="template" ${engine === 'template' ? 'checked' : ''} /><span>Templates</span></label>
+    </div>`;
+  let body;
+  if (engine === 'template') {
+    body = `<p class="engine__note">Instant scripts built from structured templates. Fast and predictable, but they follow the same shape every time.</p>`;
+  } else if (!supported) {
+    body = `<p class="engine__note">The AI writer needs <b>WebGPU</b>, which this browser doesn’t offer. It works in current Chrome, Edge and Safari. Until then, Studio uses templates.</p>`;
+  } else if (ws.status === 'off') {
+    body = `<p class="engine__note"><b>${MODEL.name}</b> writes a fresh, original script for any topic, right in your browser, on your GPU. It’s a one-time download of about ${MODEL.sizeMB} MB; after that it works offline, and nothing you type ever leaves this device.</p>
+      <button type="button" class="btn btn--signal btn--sm" data-action="studio-ai-load">${icon('download', 16)}<span>Download AI writer</span></button>`;
+  } else if (ws.status === 'loading') {
+    const pct = ws.total ? Math.min(100, Math.round((ws.loaded / ws.total) * 100)) : 0;
+    const label = ws.note === 'Warming up' ? 'Warming up the model…' : ws.total ? `Downloading ${MODEL.name} · ${fmtMB(ws.loaded)} of ${fmtMB(ws.total)}` : `Loading ${MODEL.name}…`;
+    body = `<div class="engine__load"><p class="mono">${esc(label)}</p><div class="meterbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="AI writer download"><i style="width:${ws.note === 'Warming up' ? 100 : pct}%"></i></div></div>`;
+  } else if (ws.status === 'error') {
+    body = `<p class="engine__note engine__note--err">The AI writer couldn’t start: ${esc(ws.error || 'unknown error')}. Studio will use templates for now.</p>
+      <button type="button" class="btn btn--ghost btn--sm" data-action="studio-ai-load">Try again</button>`;
+  } else {
+    body = `<p class="engine__note"><span class="engine__ok"></span><b>${MODEL.name}</b> is ready on your GPU. Scripts are written live, on this device.</p>`;
+  }
+  return `${seg}<div class="engine__body">${body}</div>`;
+}
+
+const segLi = (sg, i) => `<li data-seg="${i}" data-voice="${sg.voice}"><button type="button" data-action="studio-jump" data-seg="${i}"><b class="mono">${esc(sg.speaker)}</b><span>${esc(sg.text)}</span></button></li>`;
+
 export function viewStudio(query) {
   const drafts = store.get().drafts;
   const supported = speechSupported();
@@ -338,30 +370,42 @@ export function viewStudio(query) {
       <h1 class="display">Say a topic.<br /><span class="display__soft">Two hosts will talk it through.</span></h1>
       <form class="prompt" id="studioForm" autocomplete="off">
         <input id="topic" name="topic" type="text" maxlength="120" placeholder="e.g. How volcanoes work" aria-label="Episode topic" required />
-        <button type="submit" class="btn btn--signal">${icon('sparkle', 18)}<span>Generate</span></button>
+        <button type="submit" class="btn btn--signal" id="studioGo">${icon('sparkle', 18)}<span>Generate</span></button>
       </form>
       <div class="chips chips--suggest">${SUGGESTIONS.map((s) => `<button type="button" class="chip" data-suggest="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+      <div class="engine" id="engine"></div>
     </section>
 
     <section class="onair" id="onair" ${studioDraft ? '' : 'hidden'}></section>
 
     <section class="sec" id="drafts"></section>
 
-    <p class="fineprint">Studio scripts are assembled on your device from structured templates and read aloud by your browser’s built-in voices. They’re great for sparking ideas and practising explanations; they are not a fact source.${supported ? '' : ' <b>Your browser doesn’t support speech synthesis, so scripts will be text-only.</b>'}</p>`,
+    <p class="fineprint">AI scripts are written by a small language model running entirely in your browser. Like any AI, it can get facts wrong, so treat its scripts as a starting point and check anything important. Template scripts are assembled from structured outlines. Both are read aloud by your browser’s built-in voices.${supported ? '' : ' <b>Your browser doesn’t support speech synthesis, so scripts will be text-only.</b>'}</p>`,
     mount(root) {
       const form = $('#studioForm', root);
       const input = $('#topic', root);
+      const go = $('#studioGo', root);
       const onair = $('#onair', root);
+      const engineEl = $('#engine', root);
       const draftsEl = $('#drafts', root);
       let voices = [];
       let pair = [null, null];
+      let alive = true;
+
+      const engine = () => store.get().settings.studioEngine === 'template' ? 'template' : 'ai';
+      const useAI = () => engine() === 'ai' && writer.state.status === 'ready';
 
       const setLive = (i) => {
         $$('.prompter li', onair).forEach((li) => li.classList.toggle('is-live', Number(li.dataset.seg) === i));
         const seg = studioDraft?.segments[i];
-        $$('.host', onair).forEach((h) => h.classList.toggle('is-speaking', seg && Number(h.dataset.host) === seg.voice));
+        $$('.host', onair).forEach((h) => h.classList.toggle('is-speaking', !!seg && Number(h.dataset.host) === seg.voice));
+        // Follow along inside the teleprompter only, so the page itself never jumps.
         const live = $('.prompter li.is-live', onair);
-        if (live) live.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        const box = live?.parentElement;
+        if (live && box) {
+          const top = live.offsetTop;
+          if (top < box.scrollTop || top + live.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTo({ top: Math.max(0, top - 12), behavior: 'smooth' });
+        }
       };
       const setState = (st) => {
         onair.classList.toggle('is-live', st === 'playing');
@@ -372,11 +416,18 @@ export function viewStudio(query) {
       speaker?.stop();
       speaker = supported ? createSpeaker({ onSegment: setLive, onState: setState }) : null;
 
+      const renderEngine = (ws = writer.state) => {
+        engineEl.innerHTML = engineHtml(ws, engine());
+        const writing = ws.status === 'writing';
+        go.innerHTML = writing ? `${icon('stop', 18)}<span>Stop</span>` : `${icon('sparkle', 18)}<span>Generate</span>`;
+        go.classList.toggle('is-writing', writing);
+      };
+
       const renderDrafts = () => {
         const list = store.get().drafts;
         draftsEl.innerHTML = list.length ? `${sectionHead('Saved drafts', 'Your studio shelf')}
           <ul class="drafts">${list.map((d) => `<li class="draft" style="--c:${d.theme === 'general' ? 'var(--signal)' : bandById(d.theme)?.hue || 'var(--signal)'}">
-            <button type="button" class="draft__open" data-action="studio-open" data-id="${esc(d.id)}"><span class="draft__title">${esc(d.title)}</span><span class="mono muted">${esc(d.themeLabel)} · ~${Math.round(d.seconds / 60)} min · ${new Date(d.createdAt).toLocaleDateString()}</span></button>
+            <button type="button" class="draft__open" data-action="studio-open" data-id="${esc(d.id)}"><span class="draft__title">${esc(d.title)}</span><span class="mono muted">${d.engine === 'ai' ? 'AI · ' : ''}${esc(d.themeLabel)} · ~${Math.round(d.seconds / 60)} min · ${new Date(d.createdAt).toLocaleDateString()}</span></button>
             <button type="button" class="ibtn" data-action="studio-delete" data-id="${esc(d.id)}" aria-label="Delete draft">${icon('trash', 18)}</button>
           </li>`).join('')}</ul>` : '';
       };
@@ -386,30 +437,37 @@ export function viewStudio(query) {
         const d = studioDraft;
         const saved = store.get().drafts.some((x) => x.id === d.id);
         const ref = d.ref ? findEpisode(d.ref) : null;
+        const by = d.engine === 'ai' ? `Written by ${esc(d.model || 'AI')} on this device` : 'Template draft';
         onair.hidden = false;
+        onair.classList.toggle('is-writing', !!d.writing);
         onair.style.setProperty('--c', d.theme === 'general' ? 'var(--signal)' : bandById(d.theme)?.hue || 'var(--signal)');
         onair.innerHTML = `
           <header class="onair__head">
-            <p class="onair__light mono"><i></i> On air</p>
+            <p class="onair__light mono"><i></i> ${d.writing ? 'Writing' : 'On air'}</p>
             <div><h2 class="onair__title">${esc(d.title)}</h2>
-            <p class="mono muted">${esc(d.themeLabel)} · ~${Math.round(d.seconds / 60)} min${d.keywords.length ? ` · ${d.keywords.slice(0, 3).map((k) => `#${esc(k)}`).join(' ')}` : ''}</p></div>
+            <p class="mono muted">${by} · ${esc(d.themeLabel)}${d.writing ? '' : ` · ~${Math.round(d.seconds / 60)} min`}</p></div>
           </header>
           <div class="hosts">${HOSTS.map((h, i) => `<div class="host" data-host="${i}"><span class="host__av" aria-hidden="true">${h.name[0]}<i></i><i></i></span><span><b>${h.name}</b><small class="mono">${h.role}</small></span></div>`).join('')}</div>
-          <ol class="prompter">${d.segments.map((sg, i) => `<li data-seg="${i}" data-voice="${sg.voice}"><button type="button" data-action="studio-jump" data-seg="${i}"><b class="mono">${esc(sg.speaker)}</b><span>${esc(sg.text)}</span></button></li>`).join('')}</ol>
+          <ol class="prompter" aria-live="polite">${d.segments.map(segLi).join('')}${d.writing ? '<li class="is-typing" data-voice="0"><div><b class="mono">…</b><span></span></div></li>' : ''}</ol>
           ${ref ? `<a class="onair__ref" href="#/ep/${esc(ref.slug)}">${coverHtml(ref)}<span><small class="mono">Related on the dial · ${fmtFreq(ref.freq)} FM</small><b>${esc(ref.title)}</b></span>${icon('chevron', 18)}</a>` : ''}
           <div class="onair__ctrls">
             ${speaker ? `<button type="button" class="pbtn" id="onairPlay" data-action="studio-toggle" aria-label="Play">${icon('play', 20, 'i-play')}${icon('pause', 20, 'i-pause')}</button>
             <button type="button" class="ibtn ibtn--box" data-action="studio-stop" aria-label="Stop">${icon('stop', 18)}</button>
             <label class="select mono"><span class="sr">Speech speed</span><select id="studioRate"><option value="0.9">0.9×</option><option value="1" selected>1×</option><option value="1.15">1.15×</option><option value="1.3">1.3×</option></select></label>` : ''}
             <span class="spacer"></span>
-            <button type="button" class="btn btn--ghost btn--sm" data-action="studio-save" ${saved ? 'disabled' : ''}>${icon(saved ? 'check' : 'download', 16)}<span>${saved ? 'Saved' : 'Save'}</span></button>
-            <button type="button" class="ibtn ibtn--box" data-action="studio-copy" aria-label="Copy script" title="Copy script">${icon('copy', 18)}</button>
-            <button type="button" class="ibtn ibtn--box" data-action="studio-download" aria-label="Download script as text" title="Download .txt">${icon('upload', 18)}</button>
+            ${d.writing ? `<button type="button" class="btn btn--ghost btn--sm" data-action="studio-ai-stop">${icon('stop', 16)}<span>Stop writing</span></button>` : ''}
+            <button type="button" class="btn btn--ghost btn--sm" data-action="studio-save" ${saved || d.writing ? 'disabled' : ''}>${icon(saved ? 'check' : 'download', 16)}<span>${saved ? 'Saved' : 'Save'}</span></button>
+            <button type="button" class="ibtn ibtn--box" data-action="studio-copy" aria-label="Copy script" title="Copy script" ${d.writing ? 'disabled' : ''}>${icon('copy', 18)}</button>
+            <button type="button" class="ibtn ibtn--box" data-action="studio-download" aria-label="Download script as text" title="Download .txt" ${d.writing ? 'disabled' : ''}>${icon('upload', 18)}</button>
           </div>
           ${speaker ? `<details class="voices"><summary class="mono">Voices</summary><div class="voices__grid">${HOSTS.map((h, i) => `<label><span>${h.name}</span><select data-voice-for="${i}"></select></label>`).join('')}</div></details>` : ''}`;
         fillVoices();
         const rateSel = $('#studioRate', onair);
-        rateSel?.addEventListener('change', () => speaker.setRate(Number(rateSel.value)));
+        if (rateSel) {
+          rateSel.value = String(speaker?.rate || 1);
+          rateSel.addEventListener('change', () => speaker.setRate(Number(rateSel.value)));
+        }
+        if (speaker?.playing) { setState('playing'); setLive(speaker.index); }
       };
 
       const fillVoices = () => {
@@ -428,29 +486,117 @@ export function viewStudio(query) {
         fillVoices();
       });
 
-      const generate = (topic) => {
-        const tTopic = topic.trim();
-        if (tTopic.length < 2) { input.focus(); return; }
-        speaker?.stop();
-        studioDraft = buildDraft(tTopic);
+      const showDraft = (d) => {
+        studioDraft = d;
         renderDraft();
-        speaker?.load(studioDraft);
+        speaker?.load(d);
         onair.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+
+      const generateTemplate = (topic) => {
+        showDraft(buildDraft(topic));
         if (speaker) setTimeout(() => speaker.play(0), 350);
       };
+
+      // Streams a script from the on-device model. The first line starts playing
+      // as soon as it's written; the speaker waits for each next line if it catches up.
+      const generateAI = async (topic) => {
+        const d = { ...draftMeta(topic, 'ai'), model: MODEL.name, writing: true };
+        showDraft(d);
+        let typing = $('.prompter .is-typing', onair);
+        let frame = 0;
+        const parser = createScriptParser((seg, i) => {
+          if (d.segments.length >= MAX_TURNS) return;
+          d.segments.push(seg);
+          if (d.segments.length >= MAX_TURNS) writer.stop();
+          if (studioDraft !== d || !alive) return;
+          typing?.insertAdjacentHTML('beforebegin', segLi(seg, i));
+          if (i === 0 && speaker) speaker.play(0);
+          else speaker?.nudge();
+          if (speaker?.index === i) setLive(i);
+        });
+        const paintTyping = () => {
+          frame = 0;
+          if (studioDraft !== d || !alive) return;
+          typing = $('.prompter .is-typing', onair);
+          const p = parser.partial;
+          if (!typing) return;
+          typing.dataset.voice = String(p?.voice ?? (d.segments.length % 2));
+          typing.querySelector('b').textContent = p ? HOSTS[p.voice].name : '…';
+          typing.querySelector('span').textContent = p?.text || '';
+          const box = typing.parentElement;
+          if (!speaker?.playing) box.scrollTop = box.scrollHeight;
+        };
+        let failed = null;
+        try {
+          await writer.generate(buildMessages(topic, d.ref ? findEpisode(d.ref) : null), GEN_OPTIONS, (t) => {
+            parser.push(t);
+            if (!frame) frame = requestAnimationFrame(paintTyping);
+          });
+        } catch (err) { failed = err; }
+        parser.end();
+        if (d.segments.length >= 3) finishScript(d.segments, speaker?.index ?? -1);
+        d.writing = false;
+        d.seconds = estimateSeconds(d.segments);
+        if (studioDraft !== d) return;
+        if (d.segments.length < 3) {
+          // Too little usable dialogue (or the run was cancelled early): fall back to a template.
+          if (!d.cancelled && failed?.message !== 'stopped') {
+            toast(failed ? 'The AI writer hit a problem, so here’s a template draft instead' : 'The AI script came out too short, so here’s a template draft instead');
+            if (alive) generateTemplate(topic); else studioDraft = buildDraft(topic);
+          } else if (!d.segments.length) {
+            // Stopped before the first line was finished: nothing worth keeping on air.
+            speaker?.stop();
+            studioDraft = null;
+            if (alive) { renderDraft(); toast('Stopped'); }
+          } else if (alive) { renderDraft(); speaker?.nudge(); }
+          return;
+        }
+        if (alive) { renderDraft(); speaker?.nudge(); }
+      };
+
+      const generate = (topic) => {
+        const tTopic = topic.trim();
+        if (writer.busy) { if (studioDraft) studioDraft.cancelled = true; writer.stop(); return; }
+        if (tTopic.length < 2) { input.focus(); return; }
+        speaker?.stop();
+        if (useAI()) { generateAI(tTopic); return; }
+        if (engine() === 'ai' && writer.state.status === 'loading') toast('The AI writer is still loading, so here’s a quick template draft');
+        generateTemplate(tTopic);
+      };
+
+      const unsubWriter = writer.subscribe((ws) => { if (alive) renderEngine(ws); });
+
+      // Returning listeners who already downloaded the model get it loaded from the cache.
+      if (engine() === 'ai' && aiSupported() && writer.state.status === 'off') {
+        if (store.get().settings.aiWriter) writer.load();
+        else modelCached().then((yes) => { if (yes && alive && writer.state.status === 'off') writer.load(); });
+      }
+
+      engineEl.addEventListener('change', (e) => {
+        if (e.target.name !== 'engine') return;
+        store.update((s) => { s.settings.studioEngine = e.target.value; }, 'settings');
+        renderEngine();
+      });
 
       form.addEventListener('submit', (e) => { e.preventDefault(); generate(input.value); });
       root.addEventListener('click', (e) => {
         const sug = e.target.closest('[data-suggest]');
-        if (sug) { input.value = sug.dataset.suggest; generate(input.value); return; }
+        if (sug) { if (writer.busy) return; input.value = sug.dataset.suggest; generate(input.value); return; }
         const a = e.target.closest('[data-action^="studio-"]');
         if (!a) return;
         const act = a.dataset.action;
-        if (act === 'studio-toggle') speaker?.toggle();
+        if (act === 'studio-ai-load') {
+          store.update((s) => { s.settings.aiWriter = true; s.settings.studioEngine = 'ai'; }, 'settings');
+          writer.load();
+        } else if (act === 'studio-ai-stop') {
+          if (writer.busy) { studioDraft.cancelled = true; writer.stop(); }
+        } else if (act === 'studio-toggle') speaker?.toggle();
         else if (act === 'studio-stop') speaker.stop();
         else if (act === 'studio-jump') speaker?.jump(Number(a.dataset.seg));
         else if (act === 'studio-save') {
-          store.update((s) => { s.drafts = [studioDraft, ...s.drafts.filter((d) => d.id !== studioDraft.id)].slice(0, 30); }, 'drafts');
+          const { writing, cancelled, ...clean } = studioDraft;
+          store.update((s) => { s.drafts = [clean, ...s.drafts.filter((d) => d.id !== clean.id)].slice(0, 30); }, 'drafts');
           renderDraft(); renderDrafts(); toast('Draft saved to your studio shelf');
         } else if (act === 'studio-copy') {
           navigator.clipboard?.writeText(draftToText(studioDraft)).then(() => toast('Script copied'), () => toast('Copy failed — try Download instead'));
@@ -461,6 +607,7 @@ export function viewStudio(query) {
           document.body.appendChild(link); link.click(); link.remove();
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         } else if (act === 'studio-open') {
+          if (writer.busy) { studioDraft.cancelled = true; writer.stop(); }
           speaker?.stop();
           studioDraft = store.get().drafts.find((d) => d.id === a.dataset.id) || null;
           renderDraft(); speaker?.load(studioDraft);
@@ -474,10 +621,17 @@ export function viewStudio(query) {
         }
       });
 
+      renderEngine();
+      if (studioDraft?.writing) studioDraft.writing = false;
       renderDraft();
       if (studioDraft) speaker?.load(studioDraft);
       renderDrafts();
-      return () => speaker?.stop();
+      return () => {
+        alive = false;
+        unsubWriter();
+        if (writer.busy) { if (studioDraft) studioDraft.cancelled = true; writer.stop(); }
+        speaker?.stop();
+      };
     }
   };
 }
@@ -565,8 +719,8 @@ export function viewAbout() {
         <ul>
           <li><b>Tune, don’t scroll.</b> Drag the dial and let curiosity pick. Between stations you’ll hear a little static.</li>
           <li><b>Keep the dial playing.</b> When an episode ends, EchoHub tunes to the next station you haven’t heard.</li>
-          <li><b>Make your own.</b> Echo Studio turns any topic into a two-host script, read aloud right on your device.</li>
-          <li><b>Works offline.</b> Install it like an app and save stations for when there’s no signal.</li>
+          <li><b>Make your own.</b> In Echo Studio, a small AI model running in your browser writes a two-host episode on any topic, and the hosts read it aloud as it’s written.</li>
+          <li><b>Works offline.</b> Save stations to your device and they keep playing when there’s no signal.</li>
           <li><b>Private by design.</b> No account, no tracking, no ads. Everything you do stays on your device.</li>
         </ul>
       </div>

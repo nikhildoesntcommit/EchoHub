@@ -4,6 +4,7 @@ import { BANDS } from './catalog.js';
 import { store } from './store.js';
 import { player } from './player.js';
 import { clearOffline } from './offline.js';
+import { MODEL, modelCached, deleteModel } from './writer.js';
 import { saveTape, probeDuration } from './uploads.js';
 import { esc, icon, fmtClock, fmtLength, toast, $, $$ } from './ui.js';
 import { coverHtml, resolveEp, hueOf, freqLabel } from './components.js';
@@ -33,10 +34,6 @@ sheet.addEventListener('close', () => { onCloseFn?.(); onCloseFn = null; current
 sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
 
 // ---------------------------------------------------------------- Settings
-let deferredInstall = null;
-export const setInstallPrompt = (e) => { deferredInstall = e; };
-export const getInstallPrompt = () => deferredInstall;
-
 export async function openSettings() {
   const s = store.get().settings;
   const seg = (name, value, options) => `<div class="seg" role="radiogroup" aria-label="${esc(name)}">${options.map(([v, l]) => `<label><input type="radio" name="${esc(name)}" value="${esc(v)}" ${String(value) === String(v) ? 'checked' : ''} /><span>${esc(l)}</span></label>`).join('')}</div>`;
@@ -46,8 +43,7 @@ export async function openSettings() {
     const est = await navigator.storage?.estimate?.();
     if (est?.usage) usage = `${(est.usage / 1024 / 1024).toFixed(1)} MB used on this device`;
   } catch { /* ignore */ }
-  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
-  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const aiCached = await modelCached();
 
   openSheet('settings', 'Settings', `
     <section class="set">
@@ -61,21 +57,17 @@ export async function openSettings() {
       <div class="set__row"><span><b>Skip back</b></span>${seg('skipBack', s.skipBack, [[10, '10s'], [15, '15s'], [30, '30s']])}</div>
       <div class="set__row"><span><b>Skip forward</b></span>${seg('skipFwd', s.skipFwd, [[15, '15s'], [30, '30s'], [45, '45s']])}</div>
     </section>
-    ${standalone ? '' : `<section class="set">
-      <h3 class="set__h mono">Install</h3>
-      ${deferredInstall ? `<button type="button" class="btn btn--signal" data-action="install">${icon('download', 18)}<span>Install EchoHub</span></button>`
-        : `<p class="muted">${isIOS ? 'In Safari, tap Share, then “Add to Home Screen”.' : 'Use your browser’s “Install app” or “Add to Home screen” option to put EchoHub on your device.'}</p>`}
-    </section>`}
     <section class="set">
       <h3 class="set__h mono">Storage</h3>
       ${usage ? `<p class="muted">${esc(usage)}</p>` : ''}
       <div class="set__btns">
         <button type="button" class="btn btn--ghost btn--sm" data-set-action="clear-offline">Remove downloads</button>
+        ${aiCached ? `<button type="button" class="btn btn--ghost btn--sm" data-set-action="delete-ai">Delete AI writer (~${MODEL.sizeMB} MB)</button>` : ''}
         <button type="button" class="btn btn--ghost btn--sm" data-set-action="clear-history">Clear history &amp; progress</button>
         <button type="button" class="btn btn--danger btn--sm" data-set-action="reset">Erase everything</button>
       </div>
     </section>
-    <p class="mono muted set__foot">EchoHub 2.1 · Everything stays on this device.</p>
+    <p class="mono muted set__foot">EchoHub 2.2 · Everything stays on this device.</p>
   `, (root) => {
     root.addEventListener('change', (e) => {
       const t = e.target;
@@ -87,13 +79,20 @@ export async function openSettings() {
       const a = e.target.closest('[data-set-action]')?.dataset.setAction;
       if (!a) return;
       if (a === 'clear-offline') { await clearOffline(); toast('Downloads removed'); }
+      if (a === 'delete-ai') {
+        await deleteModel();
+        store.update((st) => { st.settings.aiWriter = false; }, 'settings');
+        e.target.closest('[data-set-action]')?.remove();
+        toast('AI writer removed from this device');
+      }
       if (a === 'clear-history' && confirm('Clear listening history, progress and stats?')) {
         store.update((st) => { st.history = []; st.progress = {}; st.finished = []; st.listenLog = {}; st.bandSeconds = {}; }, 'history');
         toast('History cleared');
       }
-      if (a === 'reset' && confirm('Erase all EchoHub data on this device? Kept stations, drafts, downloads and settings will be removed. Your tapes are kept.')) {
+      if (a === 'reset' && confirm('Erase all EchoHub data on this device? Kept stations, drafts, downloads, the AI writer and settings will be removed. Your tapes are kept.')) {
         player.pause();
         await clearOffline();
+        await deleteModel();
         store.reset();
         closeSheet();
         toast('EchoHub has been reset');
