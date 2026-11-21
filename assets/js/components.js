@@ -22,7 +22,6 @@ export function hueOf(ep) {
 }
 
 export function bandLabel(ep) {
-  if (ep.band === 'station') return 'Station ID';
   if (ep.isTape) return 'Your tape';
   return bandOf(ep)?.name || 'EchoHub';
 }

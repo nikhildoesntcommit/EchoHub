@@ -165,29 +165,7 @@ export const EPISODES = [
   })
 ];
 
-// The station ID that closes out the dial.
-export const STATION_ID = {
-  slug: 'about-echohub',
-  file: 'about_us',
-  title: 'Meet the Makers',
-  band: 'station',
-  freq: 107.9,
-  seconds: 304,
-  tags: ['echohub', 'team', 'behind the scenes'],
-  description: 'The people behind EchoHub talk about how the project came together: the research, the scripts, the design and the build.',
-  audio: 'about_us/about_us.mp3',
-  cover: 'assets/img/covers/about_us.webp'
-};
-
-export const TEAM = [
-  { name: 'Nikhil', role: 'Web Developer', bio: 'Built the EchoHub app: design, interaction, the player and the studio.' },
-  { name: 'Bhumika', role: 'Presentation Designer', bio: 'Shaped the visual story and the brand that the project was presented with.' },
-  { name: 'Maleeha', role: 'Podcast Creator', bio: 'Researched and recorded the episodes, turning big topics into short, clear audio.' },
-  { name: 'Ria', role: 'Project Manager', bio: 'Coordinated the team and kept every piece moving toward one finished product.' },
-  { name: 'Jasmine', role: 'Script Writer', bio: 'Wrote and refined the scripts for clarity, accuracy and flow.' }
-];
-
-export const ALL_STATIONS = [...EPISODES, STATION_ID];
+export const ALL_STATIONS = EPISODES;
 
 export const bandById = (id) => BANDS.find((b) => b.id === id);
 export const findEpisode = (slug) => ALL_STATIONS.find((e) => e.slug === slug);

@@ -797,12 +797,17 @@ kbd {
 .principles li { color: var(--ink-2); font-size: 15px; padding-left: 20px; position: relative; }
 .principles li::before { content: ""; position: absolute; left: 0; top: 8px; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--signal); }
 .principles b { color: var(--ink); }
-.team { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
-.member { display: flex; gap: 14px; padding: 18px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); }
-.member__av { flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-weight: 750; font-size: 20px; color: #120f0c; background: var(--c); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 20%, transparent); }
-.member h3 { font-size: 17px; letter-spacing: -0.02em; }
-.member .mono { font-size: 11px; color: var(--c); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
-.member__bio { font-size: 14px; color: var(--ink-2); margin-top: 8px; }
+.glance { padding: 24px; border-radius: var(--r-lg); background: linear-gradient(150deg, color-mix(in srgb, var(--signal) 12%, var(--surface)), var(--surface) 60%); border: 1px solid var(--line); display: grid; gap: 20px; align-content: start; justify-items: start; }
+.glance__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; width: 100%; }
+.glance__grid div { padding: 14px; border-radius: var(--r-md); background: var(--lcd-bg); border: 1px solid rgba(255, 179, 92, 0.12); box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.6); }
+.glance__grid dt { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255, 179, 92, 0.6); }
+.glance__grid dd { margin: 6px 0 0; font: 700 clamp(18px, 2.2vw, 26px) var(--mono); color: var(--lcd); text-shadow: 0 0 14px rgba(255, 179, 92, 0.45); white-space: nowrap; }
+.glance__bands { display: flex; flex-wrap: wrap; gap: 8px; }
+.glance__bands a { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--c) 35%, var(--line)); font-size: 14px; font-weight: 600; }
+.glance__bands a:hover { background: color-mix(in srgb, var(--c) 14%, transparent); }
+.glance__bands i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.glance__bands span { color: var(--ink-3); font-size: 12px; }
+@media (max-width: 600px) { .glance__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .colophon { display: grid; gap: 8px; font-size: 13px; padding-top: 24px; border-top: 1px solid var(--line); }
 .colophon .mono { font-size: 12px; }
 

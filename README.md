@@ -20,6 +20,9 @@ Drag the dial, land on a station, learn something in five minutes.
 
 ---
 
+> [!NOTE]
+> **About this project.** The first version of EchoHub was built as a group submission for our school's **AINOVA** AI club by Nikhil, Bhumika, Maleeha, Ria and Jasmine, with the help of AI tools. That original podcast site has since been rebuilt into the standalone listening app in this repository. The first version is still available in the repository's commit history.
+
 ## Contents
 
 - [What is EchoHub?](#what-is-echohub)
@@ -33,7 +36,6 @@ Drag the dial, land on a station, learn something in five minutes.
 - [Adding a new episode](#adding-a-new-episode)
 - [Privacy](#privacy)
 - [Browser support](#browser-support)
-- [Credits](#credits)
 
 ## What is EchoHub?
 
@@ -102,7 +104,6 @@ EchoHub's look is built around one idea: **learning as radio**.
 | 103.1 | The Rise of Ancient Rome | History | 3:10 |
 | 104.7 | Causes of World War I | History | 2:55 |
 | 106.1 | Stories Behind the Taj Mahal | History | 2:17 |
-| 107.9 | *Meet the Makers* (station ID) | About | 5:04 |
 
 ## Keyboard shortcuts
 
@@ -159,7 +160,7 @@ EchoHub/
 │   ├── css/app.css         # The "Frequency" design system
 │   ├── js/
 │   │   ├── main.js         # Boot, router, actions, keyboard, theme, install
-│   │   ├── catalog.js      # Stations, bands, frequencies, team
+│   │   ├── catalog.js      # Stations, bands and frequencies
 │   │   ├── views.js        # Listen, Band, Episode, Search, Studio, Library, About
 │   │   ├── components.js   # Cards, rows, covers, buttons
 │   │   ├── tuner.js        # The FM dial + synthesised static
@@ -174,9 +175,7 @@ EchoHub/
 │   ├── icons/              # App icons, favicon, maskable icon
 │   └── img/                # Optimised covers (WebP), screenshots, social card
 ├── podcasts/               # Episode audio (MP3)
-├── about_us/               # Station ID audio
-├── covers/                 # Original full-resolution cover artwork (source files)
-└── presentation/           # Original school project presentation materials
+└── covers/                 # Original full-resolution cover artwork (source files)
 ```
 
 ## Adding a new episode
@@ -213,19 +212,3 @@ EchoHub has no backend. Kept stations, history, progress, stats, drafts and sett
 ## Browser support
 
 EchoHub works in current versions of Chrome, Edge, Safari (macOS and iOS) and Firefox. Installation and lock-screen controls depend on the browser and platform. On iOS the visualiser uses a procedural animation, because routing audio through Web Audio would stop playback when the screen locks. Echo Studio's voices come from the operating system, so they sound different on each device.
-
-## Credits
-
-EchoHub began as a submission for our school AI club and grew into a full listening app. The code was written with the help of AI tools.
-
-**AINOVA · Group 6**
-
-| Name | Role |
-|---|---|
-| Nikhil | Web Developer: design, interaction, player and studio |
-| Bhumika | Presentation Designer: visual story and branding |
-| Maleeha | Podcast Creator: research and episode recording |
-| Ria | Project Manager: coordination and delivery |
-| Jasmine | Script Writer: scripts, clarity and flow |
-
-The original presentation, script and demo video are in [`presentation/`](presentation/).

@@ -1,6 +1,6 @@
 // Route views. Each returns { title, html, mount?(root) -> cleanup? }.
 
-import { BANDS, EPISODES, STATION_ID, ALL_STATIONS, TEAM, bandById, findEpisode } from './catalog.js';
+import { BANDS, EPISODES, ALL_STATIONS, bandById, findEpisode } from './catalog.js';
 import { store, getStats, isKept } from './store.js';
 import { isSaved } from './offline.js';
 import { player } from './player.js';
@@ -538,41 +538,41 @@ export function viewLibrary(query) {
 
 // ---------------------------------------------------------------- About
 export function viewAbout() {
-  const hues = BANDS.map((b) => b.hue);
+  const sorted = [...EPISODES].sort((a, b) => a.freq - b.freq);
+  const totalMin = Math.round(EPISODES.reduce((a, e) => a + e.seconds, 0) / 60);
   return {
     title: 'About',
     html: `
     <section class="about">
-      <p class="kicker mono">About · ${fmtFreq(STATION_ID.freq)} FM</p>
+      <p class="kicker mono">About EchoHub</p>
       <h1 class="display">A radio for<br /><span class="display__soft">curious minds.</span></h1>
-      <p class="lede">EchoHub turns learning into tuning. Every episode is a station on an FM-style dial — short, focused explainers on technology, science, geography and history that you can finish on a walk, a bus ride or between classes.</p>
+      <p class="lede">EchoHub turns learning into tuning. Every episode is a station on an FM-style dial — short, focused explainers on technology, science, geography and history that you can finish on a walk, a bus ride or a coffee break.</p>
     </section>
     <section class="sec sec--split">
-      <article class="daily" style="--c:var(--signal)">
-        <div class="daily__art">${coverHtml(STATION_ID)}</div>
-        <div class="daily__body">
-          <p class="kicker mono">Station ID · ${fmtFreq(STATION_ID.freq)} FM</p>
-          <h2 class="daily__title">${esc(STATION_ID.title)}</h2>
-          <p class="daily__desc">${esc(STATION_ID.description)}</p>
-          <div class="daily__actions">${playBtn(STATION_ID)}<span class="mono daily__len">${esc(fmtLength(STATION_ID.seconds))}</span></div>
-        </div>
+      <article class="glance">
+        <p class="kicker mono">The dial at a glance</p>
+        <dl class="glance__grid">
+          <div><dt class="mono">Stations</dt><dd>${EPISODES.length}</dd></div>
+          <div><dt class="mono">Bands</dt><dd>${BANDS.length}</dd></div>
+          <div><dt class="mono">Airtime</dt><dd>${totalMin} min</dd></div>
+          <div><dt class="mono">Range</dt><dd>${fmtFreq(sorted[0].freq)}–${fmtFreq(sorted[sorted.length - 1].freq)}</dd></div>
+        </dl>
+        <ul class="glance__bands">${BANDS.map((b) => `<li style="--c:${b.hue}"><a href="#/band/${b.id}"><i></i>${esc(b.name)}<span class="mono">${EPISODES.filter((e) => e.band === b.id).length}</span></a></li>`).join('')}</ul>
+        <button type="button" class="btn btn--signal" data-action="tune-shuffle">${icon('shuffle', 18)}<span>Surprise me</span></button>
       </article>
       <div class="principles">
         <h2 class="sec__title">How it works</h2>
         <ul>
           <li><b>Tune, don’t scroll.</b> Drag the dial and let curiosity pick. Between stations you’ll hear a little static.</li>
           <li><b>Keep the dial playing.</b> When an episode ends, EchoHub tunes to the next station you haven’t heard.</li>
+          <li><b>Make your own.</b> Echo Studio turns any topic into a two-host script, read aloud right on your device.</li>
           <li><b>Works offline.</b> Install it like an app and save stations for when there’s no signal.</li>
           <li><b>Private by design.</b> No account, no tracking, no ads. Everything you do stays on your device.</li>
         </ul>
       </div>
     </section>
-    <section class="sec">
-      ${sectionHead('The crew', 'Made by AINOVA · Group 6')}
-      <ul class="team">${TEAM.map((m, i) => `<li class="member" style="--c:${hues[i % hues.length]}"><span class="member__av" aria-hidden="true">${esc(m.name[0])}</span><div><h3>${esc(m.name)}</h3><p class="mono">${esc(m.role)}</p><p class="member__bio">${esc(m.bio)}</p></div></li>`).join('')}</ul>
-    </section>
     <section class="sec colophon">
-      <p class="mono muted">EchoHub began as a school AI club project and grew into a full listening app. Built with plain HTML, CSS and JavaScript — no frameworks, no trackers — and hosted on GitHub Pages.</p>
+      <p class="mono muted">Built with plain HTML, CSS and JavaScript — no frameworks, no trackers — and hosted on GitHub Pages.</p>
       <p class="mono muted"><a class="link" href="https://github.com/nikhildoesntcommit/EchoHub" target="_blank" rel="noopener">Source on GitHub ${icon('external', 14)}</a> · <button type="button" class="link" data-action="shortcuts">Keyboard shortcuts</button> · <button type="button" class="link" data-action="settings">Settings</button></p>
     </section>`
   };

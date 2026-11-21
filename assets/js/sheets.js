@@ -75,7 +75,7 @@ export async function openSettings() {
         <button type="button" class="btn btn--danger btn--sm" data-set-action="reset">Erase everything</button>
       </div>
     </section>
-    <p class="mono muted set__foot">EchoHub 2.0 · Everything stays on this device.</p>
+    <p class="mono muted set__foot">EchoHub 2.1 · Everything stays on this device.</p>
   `, (root) => {
     root.addEventListener('change', (e) => {
       const t = e.target;

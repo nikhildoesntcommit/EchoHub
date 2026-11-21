@@ -1,13 +1,13 @@
 /* EchoHub service worker — offline shell, cached covers, and saved episodes
    served with byte-range support so seeking works with no connection. */
 
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 const SHELL = `echohub-shell-${VERSION}`;
 const FONTS = 'echohub-fonts-v1';
 const AUDIO = 'echohub-audio-v1'; // managed by the page (offline.js); never purged on update
 
 const COVERS = [
-  'about_us', 'bhakra_nangal_dam', 'black_holes_explained', 'causes_of_world_war_i',
+  'bhakra_nangal_dam', 'black_holes_explained', 'causes_of_world_war_i',
   'how_the_internet_moves_data', 'how_vaccines_protect_us', 'smartphones_of_the_future',
   'stories_behind_the_taj_mahal', 'the_rise_of_ancient_rome', 'understanding_earthquakes',
   'what_is_ai_really', 'why_deserts_exist', 'why_we_dream'
