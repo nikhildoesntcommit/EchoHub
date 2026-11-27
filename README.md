@@ -21,7 +21,7 @@ Drag the dial, land on a station, learn something in five minutes.
 ---
 
 > [!NOTE]
-> **About this project.** The first version of EchoHub was built as a group submission for our school's **AINOVA** AI club by Nikhil, Bhumika, Maleeha, Ria and Jasmine, with the help of AI tools. That original podcast site has since been rebuilt into the standalone listening app in this repository. The first version is still available in the repository's commit history.
+> **About this project.** The first version of EchoHub was built as a group submission for our school's **AINOVA** AI club by five members with the help of AI tools. That original podcast site has since been rebuilt into the standalone listening app in this repository. The first version is still available in the repository's commit history.
 
 ## Contents
 
@@ -146,21 +146,6 @@ python3 -m http.server 8000
 ```
 
 Then open <http://localhost:8000>.
-
-> [!TIP]
-> Python's built-in server doesn't support byte-range requests, so scrubbing in long episodes can be jumpy locally. Any range-capable server works better, for example `npx http-server -p 8000`. GitHub Pages supports ranges out of the box.
-
-## Deploy to GitHub Pages
-
-1. Push the repository to GitHub.
-2. Go to **Settings → Pages**.
-3. Under **Build and deployment**, choose **Deploy from a branch**, then select `main` and `/ (root)`.
-4. Save. The site will be live at `https://<user>.github.io/<repo>/` within a minute or two.
-
-Everything uses relative paths, so it works under any repository name. `404.html` sends deep links like `/EchoHub/ep/why-we-dream` to the matching in-app route, and `.nojekyll` makes Pages serve the files exactly as they are.
-
-> [!IMPORTANT]
-> When you change any file the app caches, bump `VERSION` in [`sw.js`](sw.js). Returning listeners will see a **"A new version of EchoHub is ready → Refresh"** prompt.
 
 ## Project structure
 
